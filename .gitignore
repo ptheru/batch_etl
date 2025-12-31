@@ -7,3 +7,4 @@ data/out/
 data/raw/*.parquet
 data/raw/*.csv
 data/raw/*.json
+airflow/logs/
