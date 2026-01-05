@@ -9,7 +9,7 @@ from src.configs.log import get_logger
 logger = get_logger("bronze.ingest_events")
 
 def main():
-    run_id = os.getenv("RUN_ID", str(uuid.uuid4()))
+
     p = Paths()
     spark = build_spark("batch_bronze_ingest")
 
@@ -17,14 +17,18 @@ def main():
     bronze_path = p.bronze_events
 
     logger.info(f"Reading raw jsonl from: {raw_path}")
-    df = spark.read.json(raw_path)
+
+    process_date = os.getenv("PROCESS_DATE")  # YYYY-MM-DD
+    if process_date:
+        df = spark.read.json(f"{raw_path}/dt={process_date}")
+    else:
+        df = spark.read.json(raw_path)
 
     # Normalize timestamps
     df = (
         df.withColumn("event_ts", to_timestamp(col("event_ts")))
           .withColumn("ingest_ts", to_timestamp(col("ingest_ts")))
           .withColumn("event_date", date_format(col("event_ts"), "yyyy-MM-dd"))
-          .withColumn("run_id", lit(run_id))
     )
 
     # DQ checks 

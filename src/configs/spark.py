@@ -5,13 +5,17 @@ def build_spark(app_name: str) -> SparkSession:
         SparkSession.builder
             .appName(app_name)
 
+             # ---- Partition overwrite semantics ----
+            # Overwrite only affected partitions instead of entire table
+            .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
+
             # ---- Cluster sizing assumptions ----
             # Assume 32 total cores available to this Spark application.
             # Choose ~4 cores/executor => ~8 executors (roughly 32/4).
-            # These are usually set at submit-time / cluster manager level:
-            # .config("spark.executor.instances", "8")
-            # .config("spark.executor.cores", "4")
-            # .config("spark.executor.memory", "12g")
+
+            .config("spark.executor.instances", "8")
+            .config("spark.executor.cores", "4")
+            .config("spark.executor.memory", "12g")
 
             # ---- Shuffle / AQE ----
             # Rule of thumb: shuffle partitions ~ 2x to 3x total cores.

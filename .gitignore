@@ -4,7 +4,5 @@ __pycache__/
 venv/
 .vscode/
 data/out/
-data/raw/*.parquet
-data/raw/*.csv
-data/raw/*.json
+data/raw/
 airflow/logs/

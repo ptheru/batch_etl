@@ -16,7 +16,12 @@ def main():
     silver_path = p.silver_events
     gold_path = p.gold_daily_metrics
 
-    df = spark.read.parquet(silver_path)
+    process_date = os.getenv("PROCESS_DATE")  # YYYY-MM-DD
+    if process_date:
+    # because bronze is partitioned by event_date=yyyy-mm-dd
+        df = spark.read.parquet(f"{silver_path}/dt={process_date}")
+    else:
+        df = spark.read.parquet(silver_path)
 
     daily = (
         df.withColumn("event_day", to_date(col("event_ts")))
@@ -37,7 +42,7 @@ def main():
     logger.info(f"Gold daily_metrics rows: {row_count}")
 
     # Partition by event_date for dashboard reads + incremental refresh
-    daily.coalesce(4).write.mode("overwrite").partitionBy("event_date").parquet(gold_path)
+    daily.coalesce(1).write.mode("overwrite").partitionBy("event_date").parquet(gold_path)
 
 
     spark.stop()

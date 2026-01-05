@@ -12,14 +12,19 @@ ALLOWED_EVENT_TYPES = ["page_view", "add_to_cart", "purchase", "search", "login"
 ALLOWED_COUNTRIES = ["US", "CA", "IN", "GB"]
 
 def main():
-    run_id = os.getenv("RUN_ID", str(uuid.uuid4()))
+
     p = Paths()
     spark = build_spark("batch_silver_transform")
 
     bronze_path = p.bronze_events
     silver_path = p.silver_events
 
-    df = spark.read.parquet(bronze_path)
+    process_date = os.getenv("PROCESS_DATE")  # YYYY-MM-DD
+    if process_date:
+    # because bronze is partitioned by event_date=yyyy-mm-dd
+        df = spark.read.parquet(f"{bronze_path}/dt={process_date}")
+    else:
+        df = spark.read.parquet(bronze_path)
 
     # Standardize / clean
     df2 = (
@@ -39,8 +44,18 @@ def main():
     row_count = df2.count()
     logger.info(f"Silver rows: {row_count}")
 
-    # Keep same partitioning for downstream joins and pruning
-    df2.write.mode("overwrite").partitionBy("event_date").parquet(silver_path)
+    # Target ~256MB per output file (tune 128–512MB)
+    TARGET_FILE_MB = int(os.getenv("TARGET_FILE_MB", "256"))
+
+    # Rough total input size assumption (50GB here)
+    TOTAL_INPUT_GB = float(os.getenv("INPUT_GB", "50"))
+    total_partitions = max(32, int((TOTAL_INPUT_GB * 1024) / TARGET_FILE_MB))  
+
+    logger.info(f"Repartitioning for write: total_partitions={total_partitions} by event_date")
+    df_to_write = df2.repartition(total_partitions, col("event_date"))
+
+
+    df_to_write.write.mode("overwrite").partitionBy("event_date").parquet(silver_path)
 
     spark.stop()
     logger.info("Silver transform complete.")
